@@ -1,0 +1,73 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - "**.md"
+  pull_request:
+    types: [opened, reopened, synchronize]
+    paths-ignore:
+      - "**.md"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.ref != format('refs/heads/{0}', 'main') }}
+
+env:
+  BINARY_NAME: metsysd
+
+jobs:
+  check:
+    name: Quality
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v3
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+
+      - name: Package Check
+        uses: actions-rs/cargo@v1
+        with:
+          command: check
+
+      - name: Format Check
+        uses: actions-rs/cargo@v1
+        with:
+          command: fmt
+          args: --all -- --check
+
+      - name: Linting Check
+        uses: actions-rs/cargo@v1
+        with:
+          command: clippy
+
+  build:
+    needs: [check]
+    name: Build
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        target:
+          - aarch64-unknown-linux-gnu
+          - x86_64-unknown-linux-gnu
+        include:
+          - target: aarch64-unknown-linux-gnu
+            label: arm
+          - target: x86_64-unknown-linux-gnu
+            label: amd
+    steps:
+      - uses: actions/checkout@v2
+      - uses: actions-rs/toolchain@v1
+        with:
+          toolchain: stable
+          target: ${{ matrix.target }}
+          override: true
+      - uses: actions-rs/cargo@v1
+        with:
+          use-cross: true
+          command: build
+          args: --release --target=${{ matrix.target }}

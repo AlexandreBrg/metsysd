@@ -1,10 +1,11 @@
-mod manager;
-mod service;
-
-use crate::manager::{Manager, ManagerBuilder};
-use crate::service::{Service, ServiceType};
 use clap::Parser;
 use log::{error, info};
+
+use crate::manager::{Manager, ManagerBuilder};
+use crate::service::{RestartPolicy, Service, ServiceType};
+
+mod manager;
+mod service;
 
 #[derive(Parser, Debug, Clone)]
 #[command(author, version, about)]
@@ -21,6 +22,18 @@ struct CliArgs {
     /// See https://www.freedesktop.org/software/systemd/man/systemd.service.html#Type= for more information
     #[arg(long, value_enum)]
     service_type: Option<ServiceType>,
+
+    /// Defines the restart policy of the service
+    #[arg(long, value_enum)]
+    restart: Option<RestartPolicy>,
+
+    /// Specify the user running the service (it must exist)
+    #[arg(long)]
+    user: Option<String>,
+
+    /// Specify the group running the service (it must exist)
+    #[arg(long)]
+    group: Option<String>,
 
     /// Defines your service as a service from your user (rootless). The service will start when
     /// the user runs a session on the host.
@@ -50,13 +63,18 @@ impl Default for CliArgs {
             install_dir: None,
             daemon_reload: true,
             dry_run: false,
+            restart: None,
+            user: None,
+            group: None,
         }
     }
 }
 
 fn main() -> std::io::Result<()> {
     let cli: CliArgs = CliArgs::parse();
-    env_logger::init();
+    env_logger::init_from_env(
+        env_logger::Env::default().filter_or(env_logger::DEFAULT_FILTER_ENV, "info"),
+    );
     let service: Service = cli.clone().into();
     let manager: Manager = ManagerBuilder::new()
         .set_is_user(cli.is_user)
