@@ -34,16 +34,24 @@ impl ManagerBuilder {
     }
 
     pub fn set_is_user(mut self, is_user: bool) -> Self {
+        if is_user {
+            debug!("Create the service as a user service instead of systemd wide service");
+        }
         self.is_user = is_user;
         self
     }
 
     pub fn set_install_dir(mut self, install_dir: Option<String>) -> Self {
         self.install_dir = install_dir;
+        debug!(
+            "Set the directory to install the service to {:#?}",
+            &self.install_dir
+        );
         self
     }
 
     pub fn set_with_reload(mut self, with_reload: bool) -> Self {
+        debug!("Systemd will be reload once the service has been created");
         self.with_reload = with_reload;
         self
     }

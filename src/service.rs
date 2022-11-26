@@ -32,10 +32,32 @@ impl Display for ServiceType {
     }
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum)]
+pub enum RestartPolicy {
+    Always,
+    OnFailure,
+    OnSuccess,
+    No,
+}
+
+impl Display for RestartPolicy {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RestartPolicy::Always => write!(f, "always"),
+            RestartPolicy::OnFailure => write!(f, "on-failure"),
+            RestartPolicy::OnSuccess => write!(f, "on-success"),
+            RestartPolicy::No => write!(f, "no"),
+        }
+    }
+}
+
 #[derive(Clone)]
 pub struct ExecutionContext {
     pub exec_start: String,
     pub service_type: ServiceType,
+    pub restart_policy: RestartPolicy,
+    pub user: Option<String>,
+    pub group: Option<String>,
 }
 
 #[derive(Clone)]
@@ -49,9 +71,10 @@ impl From<CliArgs> for Service {
             name: cli.name.unwrap_or(Service::default().name),
             exec_ctx: ExecutionContext {
                 exec_start: cli.command,
-                service_type: cli
-                    .service_type
-                    .unwrap_or(ExecutionContext::default().service_type),
+                service_type: cli.service_type.unwrap_or(ServiceType::Simple),
+                restart_policy: cli.restart.unwrap_or(RestartPolicy::No),
+                user: cli.user,
+                group: cli.group,
             },
             ..Service::default()
         }
@@ -70,19 +93,22 @@ impl Default for Service {
     }
 }
 
-impl Default for ExecutionContext {
-    fn default() -> Self {
-        ExecutionContext {
-            service_type: ServiceType::Simple,
-            exec_start: "echo 'Hello World'".to_string(),
-        }
-    }
-}
-
 impl Default for InstallContext {
     fn default() -> Self {
         InstallContext {
             wanted_by: "multi-user.target".to_string(),
+        }
+    }
+}
+
+impl Default for ExecutionContext {
+    fn default() -> Self {
+        ExecutionContext {
+            exec_start: "echo 'hello world'".to_string(),
+            service_type: ServiceType::Simple,
+            restart_policy: RestartPolicy::No,
+            user: None,
+            group: None,
         }
     }
 }
@@ -95,6 +121,16 @@ impl Display for Service {
         writeln!(f, "[Service]")?;
         writeln!(f, "ExecStart={}", self.exec_ctx.exec_start)?;
         writeln!(f, "Type={}", self.exec_ctx.service_type)?;
+        writeln!(f, "Restart={}", self.exec_ctx.restart_policy)?;
+
+        if self.exec_ctx.user.is_some() {
+            writeln!(f, "User={}", self.exec_ctx.user.as_ref().unwrap())?;
+        }
+
+        if self.exec_ctx.group.is_some() {
+            writeln!(f, "Group={}", self.exec_ctx.group.as_ref().unwrap())?;
+        }
+
         writeln!(f, "[Install]")?;
         writeln!(f, "WantedBy={}", self.install_ctx.wanted_by)?;
         Ok(())
@@ -145,6 +181,7 @@ mod tests {
             exec_ctx: ExecutionContext {
                 exec_start: "echo 'Hello World'".to_string(),
                 service_type: ServiceType::Simple,
+                ..ExecutionContext::default()
             },
             install_ctx: InstallContext {
                 wanted_by: "multi-user.target".to_string(),
@@ -158,6 +195,7 @@ After=network.target
 [Service]
 ExecStart=echo 'Hello World'
 Type=simple
+Restart=no
 [Install]
 WantedBy=multi-user.target
 ";
